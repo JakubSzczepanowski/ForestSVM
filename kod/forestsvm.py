@@ -12,10 +12,11 @@ class Node:
         self.feature_name = feature_name
         self.value = value
         self.depth_index = depth_index
-        self.children: list[Node] = []
+        self.children: Iterable[Node] = []
+        self.class_label = None
 
     def __str__(self) -> str:
-        return '-'*self.depth_index + str(self.data) + '\n'.join([str(child) for child in self.children])
+        return '-'*self.depth_index + f'{self.feature_name}!{self.value}!{self.class_label}' + '\n'.join([str(child) for child in self.children])
 
     def parent_equal(self, other):
         if self is other:
@@ -23,21 +24,23 @@ class Node:
         for child in self.children:
             child.parent_equal(other)
 
-    # def add_child(self, data: any):
-    #     self.children.append(Node(data, self.depth_index + 1))
-    #     return self.children
-
     def add_level(self, data: Iterable):
         self.children = [Node(None, d, self.depth_index + 1) for d in data]
         return self.children
 
     def split_epoch(self, X: pd.DataFrame, y: np.array):
-        #TODO warunki stopu!!!
-        print(X, y)
-        if len(X.columns) == 0 or len(np.unique(y)) == 1:
+        
+        unique, counts = np.unique(y, return_counts=True)
+        if len(X.columns) == 0 or len(unique) == 1:
+            class_index = 0
+            max_count = 0
+            for index, c in enumerate(counts):
+                if c > max_count:
+                    max_count = c
+                    class_index = index
+            self.class_label = unique[class_index]
             return
 
-        unique, counts = np.unique(y, return_counts=True)
         labels_length = len(y)
         positive_labels_prop = counts[1]/labels_length
         negative_labels_prop = counts[0]/labels_length
@@ -67,6 +70,13 @@ class Node:
             new_indexes = X[self.feature_name] == child.value
             child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[new_indexes])
 
+    def predict_cascade(self, row: pd.Series) -> any:
+        if self.class_label is not None:
+            return self.class_label
+        for child in self.children:
+            if row[self.feature_name] == child.value:
+                return child.predict_cascade(row)
+
 @dataclass
 class FeatureInfo:
     feature_name: str
@@ -83,17 +93,17 @@ class DecisionTreeID3:
 
     def fit(self, X: pd.DataFrame, y: np.array):
         self.root.split_epoch(X, y)
+
+    def predict(self, X: pd.DataFrame) -> np.array:
+        predict_result = []
+        for row in range(len(X.index)):
+            predict_result.append(self.root.predict_cascade(X.loc[row]))
+        return np.array(predict_result)
          
     @staticmethod
     def entropy(positive_proportion: float, negative_proportion: float) -> float:
-        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0) 
+        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0)  
 
-# tree = DecisionTreeID3(1)
-# level1 = tree.root.add_level([2,2])
-# for i in level1:
-#     i.add_child(3)
-
-# print(tree)
 df = pd.DataFrame({'Opady': ['brak', 'mżawka', 'burza', 'burza', 'brak', 'brak'], 'Temperatura': ['ciepło', 'ciepło', 'ciepło', 'zimno', 'zimno', 'zimno'], 'Mgła': ['brak', 'lekka', 'brak', 'lekka', 'duża', 'brak'], 'Stan pogody': ['dobra', 'dobra', 'zła', 'zła', 'zła', 'dobra']})
 X = df.drop('Stan pogody', axis=1)
 y = df['Stan pogody'].copy()
@@ -102,3 +112,6 @@ y = enc.fit_transform(y.values.reshape(-1,1)).flatten()
 
 tree = DecisionTreeID3()
 tree.fit(X, y)
+print(tree)
+
+tree.predict(pd.DataFrame({'Opady': ['burza', 'brak', ], 'Temperatura': ['zimno', 'ciepło'], 'Mgła': ['duża', 'brak']}))
