@@ -29,7 +29,6 @@ class Node:
         return self.children
 
     def split_epoch(self, X: pd.DataFrame, y: np.array):
-        
         unique, counts = np.unique(y, return_counts=True)
         if len(X.columns) == 0 or len(unique) == 1:
             class_index = 0
@@ -68,7 +67,7 @@ class Node:
         self.feature_name = best_feature.feature_name
         for child in self.add_level(feature_unique_values[self.feature_name]):
             new_indexes = X[self.feature_name] == child.value
-            child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[new_indexes])
+            child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[list(new_indexes)])
 
     def predict_cascade(self, row: pd.Series) -> any:
         if self.class_label is not None:
@@ -93,6 +92,7 @@ class DecisionTreeID3:
 
     def fit(self, X: pd.DataFrame, y: np.array):
         self.root.split_epoch(X, y)
+        return self
 
     def predict(self, X: pd.DataFrame) -> np.array:
         predict_result = []
@@ -102,7 +102,33 @@ class DecisionTreeID3:
          
     @staticmethod
     def entropy(positive_proportion: float, negative_proportion: float) -> float:
-        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0)  
+        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0)   
+
+class RandomForestClassifier:
+    
+    def __init__(self, n_estimators:int=100):
+        self.n_estimators: int = n_estimators
+        self.estimators: list[DecisionTreeID3] = []
+
+    def fit(self, X: pd.DataFrame, y: np.array):
+        n = len(X.index)
+        for i in range(self.n_estimators):
+            bootstrap_samples = np.random.randint(n, size=n)
+            new_estimator = DecisionTreeID3().fit(X.iloc[bootstrap_samples], y[bootstrap_samples])
+            self.estimators.append(new_estimator)
+        return self
+
+    def predict(self, X: pd.DataFrame) -> np.array:
+        counters: list[dict] = [{}]*len(X.index)
+        for tree in self.estimators:
+            prediction = tree.predict(X)
+            for index, label in enumerate(prediction):
+                if label in counters[index]:
+                    counters[index][label] += 1
+                else:
+                    counters[index][label] = 1
+
+        return np.array(list(map(lambda elem: max(elem, key=elem.get), counters)))
 
 df = pd.DataFrame({'Opady': ['brak', 'mżawka', 'burza', 'burza', 'brak', 'brak'], 'Temperatura': ['ciepło', 'ciepło', 'ciepło', 'zimno', 'zimno', 'zimno'], 'Mgła': ['brak', 'lekka', 'brak', 'lekka', 'duża', 'brak'], 'Stan pogody': ['dobra', 'dobra', 'zła', 'zła', 'zła', 'dobra']})
 X = df.drop('Stan pogody', axis=1)
@@ -110,8 +136,7 @@ y = df['Stan pogody'].copy()
 enc = OrdinalEncoder(categories=[['zła', 'dobra']], dtype=np.int8)
 y = enc.fit_transform(y.values.reshape(-1,1)).flatten()
 
-tree = DecisionTreeID3()
-tree.fit(X, y)
-print(tree)
+forest = RandomForestClassifier()
+forest.fit(X, y)
 
-tree.predict(pd.DataFrame({'Opady': ['burza', 'brak', ], 'Temperatura': ['zimno', 'ciepło'], 'Mgła': ['duża', 'brak']}))
+forest.predict(pd.DataFrame({'Opady': ['burza', 'brak', ], 'Temperatura': ['zimno', 'ciepło'], 'Mgła': ['duża', 'brak']}))
