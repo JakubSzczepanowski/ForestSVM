@@ -28,7 +28,9 @@ class Node:
         self.children = [Node(None, d, self.depth_index + 1) for d in data]
         return self.children
 
-    def split_epoch(self, X: pd.DataFrame, y: np.array):
+    def split_epoch(self, X: pd.DataFrame, y: np.array, rand_features:bool=True):
+        if rand_features:
+            X = X[np.random.choice(X.columns, size=math.floor(math.sqrt(len(X.columns))), replace=False)]
         unique, counts = np.unique(y, return_counts=True)
         if len(X.columns) == 0 or len(unique) == 1:
             class_index = 0
@@ -62,7 +64,7 @@ class Node:
                 entropy = DecisionTreeID3.entropy(positive_prop, 1-positive_prop)
                 information_gain -= counts[index]/num_of_rows*entropy
             feature_unique_values[feature_name] = unique
-            if best_feature.information_gain < information_gain:
+            if best_feature.information_gain <= information_gain:
                 best_feature = FeatureInfo(feature_name, information_gain)
         self.feature_name = best_feature.feature_name
         for child in self.add_level(feature_unique_values[self.feature_name]):
@@ -90,8 +92,8 @@ class DecisionTreeID3:
     def __str__(self) -> str:
         return str(self.root)
 
-    def fit(self, X: pd.DataFrame, y: np.array):
-        self.root.split_epoch(X, y)
+    def fit(self, X: pd.DataFrame, y: np.array, rand_features:bool=True):
+        self.root.split_epoch(X, y, rand_features)
         return self
 
     def predict(self, X: pd.DataFrame) -> np.array:
@@ -102,19 +104,20 @@ class DecisionTreeID3:
          
     @staticmethod
     def entropy(positive_proportion: float, negative_proportion: float) -> float:
-        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0)   
+        return (-positive_proportion*math.log2(positive_proportion) if positive_proportion != 0 else 0) -(negative_proportion*math.log2(negative_proportion) if negative_proportion != 0 else 0)    
 
 class RandomForestClassifier:
     
-    def __init__(self, n_estimators:int=100):
+    def __init__(self, n_estimators:int=100, rand_features:bool=True):
         self.n_estimators: int = n_estimators
         self.estimators: list[DecisionTreeID3] = []
+        self.rand_features = rand_features
 
     def fit(self, X: pd.DataFrame, y: np.array):
         n = len(X.index)
         for i in range(self.n_estimators):
             bootstrap_samples = np.random.randint(n, size=n)
-            new_estimator = DecisionTreeID3().fit(X.iloc[bootstrap_samples], y[bootstrap_samples])
+            new_estimator = DecisionTreeID3().fit(X.iloc[bootstrap_samples], y[bootstrap_samples], self.rand_features)
             self.estimators.append(new_estimator)
         return self
 
