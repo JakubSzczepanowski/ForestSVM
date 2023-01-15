@@ -1,0 +1,7 @@
+
+# venv folders
+
+Scripts/
+Lib/
+share/
+pyvenv.cfg
