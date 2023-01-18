@@ -5,6 +5,7 @@ import pandas as pd
 import math
 from sklearn.preprocessing import OrdinalEncoder
 import numpy as np
+import sys
 
 @dataclass
 class FeatureInfo:
@@ -49,7 +50,7 @@ class Node:
             child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[list(new_indexes)])
 
     def get_best_feature(self, X: pd.DataFrame, y: np.array, unique_label_counts: Iterable) -> FeatureInfo:
-        best_feature = FeatureInfo('', 0, None)
+        best_feature = FeatureInfo('', -sys.maxsize-1, None)
         
         for feature_name in X.columns:
             feature_counts = {}
@@ -73,11 +74,11 @@ class Node:
                 proportions.append(value_count/count)
             whole_entropy = DecisionTreeID3.entropy([c/count for c in unique_label_counts])
             information_gain = DecisionTreeID3.calculate_information_gain(whole_entropy, entropies, proportions)
-            if best_feature.information_gain <= information_gain:
+            if best_feature.information_gain < information_gain:
                 best_feature.information_gain = information_gain
                 best_feature.feature_name = feature_name
                 best_feature.unique_values = list(feature_counts.keys())
-        
+                
         return best_feature
 
 
