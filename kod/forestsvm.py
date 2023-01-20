@@ -29,25 +29,25 @@ class Node:
         self.children = [Node(None, d, self.depth_index + 1) for d in data]
         return self.children
 
-    def split_epoch(self, X: pd.DataFrame, y: np.array, rand_features:bool=False):
+    def split_epoch(self, X: pd.DataFrame, y: np.array, y_old: np.array, rand_features:bool=False):
         if rand_features:
             X = X[np.random.choice(X.columns, size=math.floor(math.sqrt(len(X.columns))), replace=False)]
         unique, counts = np.unique(y, return_counts=True)
         if len(X.columns) == 0 or len(unique) == 1:
-            class_index = 0
-            max_count = 0
-            for index, c in enumerate(counts):
-                if c > max_count:
-                    max_count = c
-                    class_index = index
+            class_index = DecisionTreeID3.get_max_counted_label_index(counts)
             self.class_label = unique[class_index]
             return
-        
+        elif len(X.index) == 0:
+            unique_old, counts_old = np.unique(y_old, return_counts=True)
+            class_index = DecisionTreeID3.get_max_counted_label_index(counts_old)
+            self.class_label = unique_old[class_index]
+            return
+
         best_feature = self.get_best_feature(X, y, counts)
         self.feature_name = best_feature.feature_name
         for child in self.add_level(best_feature.unique_values):
             new_indexes = X[self.feature_name] == child.value
-            child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[list(new_indexes)])
+            child.split_epoch(X.drop(self.feature_name, axis=1).loc[new_indexes], y[list(new_indexes)], y)
 
     def get_best_feature(self, X: pd.DataFrame, y: np.array, unique_label_counts: Iterable) -> FeatureInfo:
         best_feature = FeatureInfo('', -sys.maxsize-1, None)
@@ -78,16 +78,21 @@ class Node:
                 best_feature.information_gain = information_gain
                 best_feature.feature_name = feature_name
                 best_feature.unique_values = list(feature_counts.keys())
-                
+
         return best_feature
 
 
     def predict_cascade(self, row: pd.Series) -> any:
         if self.class_label is not None:
             return self.class_label
+        value_closeness = {}
         for child in self.children:
             if row[self.feature_name] == child.value:
                 return child.predict_cascade(row)
+            if type(child.value) != str:
+                value_closeness[child] = abs(row[self.feature_name]-child.value)
+        if len(value_closeness) != 0:
+            return max(value_closeness, key=value_closeness.get).predict_cascade(row)
 
 class DecisionTreeID3:
 
@@ -100,7 +105,7 @@ class DecisionTreeID3:
         return str(self.root)
 
     def fit(self, X: pd.DataFrame, y: np.array):
-        self.root.split_epoch(X, y, self.rand_features)
+        self.root.split_epoch(X, y, y, self.rand_features)
         return self
 
     def predict(self, X: pd.DataFrame) -> np.array:
@@ -116,6 +121,16 @@ class DecisionTreeID3:
     @staticmethod
     def calculate_information_gain(whole_entropy: float, value_entropies: list, value_proportions: list):
         return whole_entropy-np.sum([ve*vp for ve, vp in zip(value_entropies, value_proportions)])
+
+    @staticmethod
+    def get_max_counted_label_index(counts: np.array) -> int:
+        class_index = 0
+        max_count = 0
+        for index, c in enumerate(counts):
+            if c > max_count:
+                max_count = c
+                class_index = index
+        return class_index
 
 class RandomForestClassifier:
     
