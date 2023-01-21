@@ -6,6 +6,7 @@ import math
 from sklearn.preprocessing import OrdinalEncoder
 import numpy as np
 import sys
+from sklearn.svm import SVC
 
 @dataclass
 class FeatureInfo:
@@ -89,7 +90,7 @@ class Node:
         for child in self.children:
             if row[self.feature_name] == child.value:
                 return child.predict_cascade(row)
-            if type(child.value) != str:
+            if type(child.value) in (int, float) and type(row[self.feature_name]) in (int, float):
                 value_closeness[child] = abs(row[self.feature_name]-child.value)
         if len(value_closeness) != 0:
             return max(value_closeness, key=value_closeness.get).predict_cascade(row)
@@ -108,7 +109,10 @@ class DecisionTreeID3:
         self.root.split_epoch(X, y, y, self.rand_features)
         return self
 
-    def predict(self, X: pd.DataFrame) -> np.array:
+    def predict(self, row: pd.Series) -> any:
+        return self.root.predict_cascade(row)
+
+    def predict_all(self, X: pd.DataFrame) -> np.array:
         predict_result = []
         for row in X.index:
             predict_result.append(self.root.predict_cascade(X.loc[row]))
@@ -134,32 +138,54 @@ class DecisionTreeID3:
 
 class RandomForestClassifier:
     
-    def __init__(self, n_estimators:int=100, rand_features:bool=True):
+    def __init__(self, n_estimators:int=100, rand_features:bool=True, combine_SVM:bool=True):
         self.n_estimators: int = n_estimators
         self.estimators: list[DecisionTreeID3] = []
         self.rand_features = rand_features
+        self.combine_SVM = combine_SVM
 
     def fit(self, X: pd.DataFrame, y: np.array):
         n = len(X.index)
+        switch = False
         for _ in range(self.n_estimators):
             bootstrap_samples = np.random.randint(n, size=n)
-            new_estimator = DecisionTreeID3(self.rand_features).fit(X.iloc[bootstrap_samples], y[bootstrap_samples])
+            if self.combine_SVM and switch:
+                new_estimator = SVC().fit(X.iloc[bootstrap_samples], y[bootstrap_samples])
+            else:
+                new_estimator = DecisionTreeID3(self.rand_features).fit(X.iloc[bootstrap_samples], y[bootstrap_samples])
             self.estimators.append(new_estimator)
         return self
 
     def predict(self, X: pd.DataFrame) -> np.array:
-        counters = [None]*len(X.index)
-        for tree in self.estimators:
-            prediction = tree.predict(X)
-            for index, label in enumerate(prediction):
-                if counters[index] is None:
-                    counters[index] = {}
-                if label in counters[index]:
-                    counters[index][label] += 1
+        results = [None]*len(X.index)
+        for index, row_index in enumerate(X.index):
+            row = X.loc[row_index]
+            counter = {}
+            max_votes = ('', 0)
+            for estimator in self.estimators:
+                prediction = estimator.predict(row)
+                if prediction in counter:
+                    counter[prediction] += 1
                 else:
-                    counters[index][label] = 1
+                    counter[prediction] = 1
+                if counter[prediction] > max_votes[1]:
+                    max_votes = (prediction, counter[prediction])
+            results[index] = max_votes[0]
+        return np.array(results)
 
-        return np.array(list(map(lambda elem: max(elem, key=elem.get), counters)))
+    # def predict(self, X: pd.DataFrame) -> np.array:
+    #     counters = [None]*len(X.index)
+    #     for estimator in self.estimators:
+    #         prediction = estimator.predict(X)
+    #         for index, label in enumerate(prediction):
+    #             if counters[index] is None:
+    #                 counters[index] = {}
+    #             if label in counters[index]:
+    #                 counters[index][label] += 1
+    #             else:
+    #                 counters[index][label] = 1
+
+    #     return np.array(list(map(lambda elem: max(elem, key=elem.get), counters)))
 
 # df = pd.read_csv('PlayTennis.csv')
 # X = df.drop('Play Tennis', axis=1)
