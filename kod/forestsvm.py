@@ -1,8 +1,9 @@
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Literal
 import pandas as pd
 import math
+from sklearn.preprocessing import OrdinalEncoder
 import numpy as np
 import sys
 from sklearn.svm import SVC
