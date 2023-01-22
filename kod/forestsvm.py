@@ -90,7 +90,7 @@ class Node:
         for child in self.children:
             if row[self.feature_name] == child.value:
                 return child.predict_cascade(row)
-            if type(child.value) in (int, float) and type(row[self.feature_name]) in (int, float):
+            if type(child.value) in (int, float, np.int64, np.float64) and type(row[self.feature_name]) in (int, float,np.int64, np.float64):
                 value_closeness[child] = abs(row[self.feature_name]-child.value)
         if len(value_closeness) != 0:
             return max(value_closeness, key=value_closeness.get).predict_cascade(row)
@@ -172,34 +172,3 @@ class RandomForestClassifier:
                     max_votes = (prediction, counter[prediction])
             results[index] = max_votes[0]
         return np.array(results)
-
-    # def predict(self, X: pd.DataFrame) -> np.array:
-    #     counters = [None]*len(X.index)
-    #     for estimator in self.estimators:
-    #         prediction = estimator.predict(X)
-    #         for index, label in enumerate(prediction):
-    #             if counters[index] is None:
-    #                 counters[index] = {}
-    #             if label in counters[index]:
-    #                 counters[index][label] += 1
-    #             else:
-    #                 counters[index][label] = 1
-
-    #     return np.array(list(map(lambda elem: max(elem, key=elem.get), counters)))
-
-# df = pd.read_csv('PlayTennis.csv')
-# X = df.drop('Play Tennis', axis=1)
-# y = df['Play Tennis'].copy()
-# tree_classifier = DecisionTreeID3()
-# tree_classifier.fit(X,np.array(y))
-
-# df = pd.DataFrame({'Opady': ['brak', 'mżawka', 'burza', 'burza', 'brak', 'brak'], 'Temperatura': ['ciepło', 'ciepło', 'ciepło', 'zimno', 'zimno', 'zimno'], 'Mgła': ['brak', 'lekka', 'brak', 'lekka', 'duża', 'brak'], 'Stan pogody': ['dobra', 'dobra', 'zła', 'zła', 'zła', 'dobra']})
-# X = df.drop('Stan pogody', axis=1)
-# y = df['Stan pogody'].copy()
-# enc = OrdinalEncoder(categories=[['zła', 'dobra']], dtype=np.int8)
-# y = enc.fit_transform(y.values.reshape(-1,1)).flatten()
-
-# forest = RandomForestClassifier()
-# forest.fit(X, y)
-
-# forest.predict(pd.DataFrame({'Opady': ['burza', 'brak', ], 'Temperatura': ['zimno', 'ciepło'], 'Mgła': ['duża', 'brak']}))
