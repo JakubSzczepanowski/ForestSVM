@@ -1,3 +1,5 @@
+### Autor: Jakub Szczepanowski
+
 
 from dataclasses import dataclass
 from typing import Iterable

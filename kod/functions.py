@@ -1,3 +1,5 @@
+### Autor: Katarzyna Bielecka
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -107,6 +109,9 @@ def k_fold(X: pd.DataFrame, y: np.array, model: Any, k: int = 3, k_fold_func: ca
 
     print(f"\n Results for all {k} folds:")  
     print(results_df)
+
+
+### Autor: Jakub Szczepanowski
 
 def create_numerical_categories(df: pd.DataFrame, omit_columns: Iterable[str], ranges: int, normalize: bool = False):
     col = [c for c in df.columns if c not in omit_columns]
