@@ -1,12 +1,12 @@
 
 from dataclasses import dataclass
-from typing import Iterable, Literal
+from typing import Iterable
 import pandas as pd
 import math
-from sklearn.preprocessing import OrdinalEncoder
 import numpy as np
 import sys
 from sklearn.svm import SVC
+from sklearn.base import BaseEstimator, ClassifierMixin
 
 @dataclass
 class FeatureInfo:
@@ -152,18 +152,25 @@ class DecisionTreeID3:
                 class_index = index
         return class_index
 
-class RandomForestClassifier:
+class RandomForestClassifier(BaseEstimator, ClassifierMixin):
     
     def __init__(self, n_estimators: int = 100, rand_features: bool = True, combine_SVM_prop: float = 0):
         self.n_estimators: int = n_estimators
         self.estimators: list[DecisionTreeID3] = []
         self.rand_features: bool = rand_features
-        self.m_SVM_estimators: int = math.floor(n_estimators*combine_SVM_prop)
+        self.combine_SVM_prop: int = math.floor(n_estimators*combine_SVM_prop)
+
+    def set_params(self, **parameters):
+        for parameter, value in parameters.items():
+            if parameter == 'combine_SVM_prop':
+                value = math.floor(self.n_estimators*value)
+            setattr(self, parameter, value)
+        return self
 
     def fit(self, X: pd.DataFrame, y: np.array):
         n = len(X.index)
         #przełącznik jeżeli używamy klasyfikatora SVM
-        switch = self.m_SVM_estimators
+        switch = self.combine_SVM_prop
         for _ in range(self.n_estimators):
             #bootstrapowe losowanie ze zwracaniem
             bootstrap_samples = np.random.randint(n, size=n)
@@ -184,7 +191,12 @@ class RandomForestClassifier:
             max_votes = ('', 0)
             #predykcja dla każdego estymatora i głosowanie
             for estimator in self.estimators:
-                prediction = estimator.predict(row)
+                if isinstance(estimator, SVC):
+                    row_array = np.array(row).reshape(1,-1)
+                    prediction = estimator.predict(row_array)
+                    prediction = prediction[0]
+                else:
+                    prediction = estimator.predict(row)
                 if prediction in counter:
                     counter[prediction] += 1
                 else:
