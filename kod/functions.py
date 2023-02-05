@@ -1,12 +1,15 @@
+### Autor: Katarzyna Bielecka
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.model_selection import KFold
 from sklearn import metrics as mtr
-from typing import Any
+from typing import Any, Iterable
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 from forestsvm import DecisionTreeID3
+from sklearn.preprocessing import MinMaxScaler
 
 
 def plot_confusion_matrix(y_true, y_pred) -> None:
@@ -108,4 +111,16 @@ def k_fold(X: pd.DataFrame, y: np.array, model: Any, k: int = 3, k_fold_func: ca
     print(results_df)
 
 
+### Autor: Jakub Szczepanowski
 
+def create_numerical_categories(df: pd.DataFrame, omit_columns: Iterable[str], ranges: int, normalize: bool = False):
+    col = [c for c in df.columns if c not in omit_columns]
+    if normalize:
+        scaler = MinMaxScaler()
+        df[col] = scaler.fit_transform(df[col])
+    
+    interval = 1/ranges
+    bins = [b*interval for b in range(ranges+1)]
+    for c in col:
+        df[c] = pd.cut(df[c], bins, labels=list(range(1, ranges+1)))
+        df[c] = df[c].fillna(1)
